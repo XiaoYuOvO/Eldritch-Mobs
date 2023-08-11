@@ -6,17 +6,19 @@ import dev.onyxstudios.cca.api.v3.component.ComponentRegistry;
 import me.shedaniel.autoconfig.AutoConfig;
 import me.shedaniel.autoconfig.serializer.JanksonConfigSerializer;
 import net.fabricmc.api.ModInitializer;
+import net.fabricmc.fabric.api.event.registry.FabricRegistryBuilder;
 import net.hyper_pigeon.eldritch_mobs.ability.Ability;
 import net.hyper_pigeon.eldritch_mobs.ability.AbilityHelper;
-import net.hyper_pigeon.eldritch_mobs.ability.data.CustomAbilityManager;
 import net.hyper_pigeon.eldritch_mobs.component.interfaces.ModifierComponent;
 import net.hyper_pigeon.eldritch_mobs.config.EldritchMobsConfig;
-import net.hyper_pigeon.eldritch_mobs.rank.MobRank;
+import net.hyper_pigeon.eldritch_mobs.rank.MobRankCategory;
+import net.hyper_pigeon.eldritch_mobs.rank.MobRankLevel;
 import net.hyper_pigeon.eldritch_mobs.register.EldritchMobsBlocks;
 import net.hyper_pigeon.eldritch_mobs.register.EldritchMobsCommands;
 import net.hyper_pigeon.eldritch_mobs.register.EldritchMobsDataRegistry;
 import net.hyper_pigeon.eldritch_mobs.register.EldritchMobsEventListeners;
 import net.minecraft.util.Identifier;
+import net.minecraft.util.registry.Registry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -32,6 +34,7 @@ public class EldritchMobsMod implements ModInitializer {
 
 	public static final ComponentKey<ModifierComponent> ELDRITCH_MODIFIERS =
 			ComponentRegistry.getOrCreate(new Identifier("eldritch_mobs:eldritch_modifiers"), ModifierComponent.class);
+	public static final Registry<MobRankLevel> MOB_RANK_LEVELS = FabricRegistryBuilder.createSimple(MobRankLevel.class, new Identifier("eldritch_mobs","mob_ranks")).buildAndRegister();
 
 	@Override
 	public void onInitialize() {
@@ -43,6 +46,7 @@ public class EldritchMobsMod implements ModInitializer {
 		EldritchMobsCommands.init();
 		EldritchMobsDataRegistry.init();
 		EldritchMobsBlocks.init();
+		MobRankLevel.registerRanks();
 		AbilityHelper.removeDisabledAbilities();
 	}
 
@@ -50,7 +54,7 @@ public class EldritchMobsMod implements ModInitializer {
 		return ELDRITCH_MODIFIERS.get(componentProvider).getModifiers();
 	}
 
-	public static MobRank getRank(ComponentProvider componentProvider){
+	public static MobRankLevel getLevel(ComponentProvider componentProvider){
 		return ELDRITCH_MODIFIERS.get(componentProvider).getRank();
 	}
 

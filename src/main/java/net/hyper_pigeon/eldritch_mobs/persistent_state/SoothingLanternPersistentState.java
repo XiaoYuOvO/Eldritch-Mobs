@@ -11,7 +11,7 @@ import java.util.Iterator;
 
 public class SoothingLanternPersistentState extends PersistentState {
 
-    private HashMap<String, ChunkPos> soothingLanternChunks = new HashMap<>();
+    private final HashMap<String, ChunkPos> soothingLanternChunks = new HashMap<>();
     public final String key;
 
     public SoothingLanternPersistentState(String key) {
@@ -27,11 +27,8 @@ public class SoothingLanternPersistentState extends PersistentState {
 
         SoothingLanternPersistentState soothingLanternPersistentState = new SoothingLanternPersistentState();
         NbtCompound compoundTag = tag.getCompound("contents");
-        Iterator var3 = compoundTag.getKeys().iterator();
 
-
-        while(var3.hasNext()) {
-            String string = (String)var3.next();
+        for (String string : compoundTag.getKeys()) {
             soothingLanternPersistentState.soothingLanternChunks.put(string, new ChunkPos(compoundTag.getLong(string)));
         }
         soothingLanternPersistentState.markDirty();
@@ -72,9 +69,7 @@ public class SoothingLanternPersistentState extends PersistentState {
     }
 
     public static SoothingLanternPersistentState get(ServerWorld world) {
-        return (SoothingLanternPersistentState) world.getPersistentStateManager().getOrCreate((nbtCompound) -> {
-            return readNbt(nbtCompound);
-        },SoothingLanternPersistentState::new, "SoothingLanternChunks");
+        return world.getPersistentStateManager().getOrCreate(SoothingLanternPersistentState::readNbt,SoothingLanternPersistentState::new, "SoothingLanternChunks");
     }
 
     public void printSoothingLanternChunks(){

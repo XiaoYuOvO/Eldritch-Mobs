@@ -9,27 +9,29 @@ import me.shedaniel.cloth.clothconfig.shadowed.blue.endless.jankson.Comment;
 public class EldritchMobsConfig implements ConfigData {
 
 
-    public double EliteSpawnRates = 0.01;
-
-    public double UltraSpawnRates = 0.001;
-
-    public double EldritchSpawnRates = 0.0001;
-
-    public float EliteHealthMultiplier = 4;
-    public float UltraHealthMultiplier = 6;
-    public float EldritchHealthMultiplier = 8;
-
-    public int EliteXpMultiplier = 4;
-    public int UltraXpMultiplier = 6;
-    public int EldritchXpMultiplier = 8;
-
-    public int EliteMinModifiers = 2;
-    public int UltraMinModifiers = 5;
-    public int EldritchMinModifiers = 9;
-
-    public int EliteMaxModifiers = 4;
-    public int UltraMaxModifiers = 8;
-    public int EldritchMaxModifiers = 12;
+//    public double EliteSpawnRates = 0.01;
+//
+//    public double UltraSpawnRates = 0.001;
+//
+//    public double EldritchSpawnRates = 0.0001;
+//
+//    public float EliteHealthMultiplier = 4;
+//    public float UltraHealthMultiplier = 6;
+//    public float EldritchHealthMultiplier = 8;
+//
+//    public int EliteXpMultiplier = 4;
+//    public int UltraXpMultiplier = 6;
+//    public int EldritchXpMultiplier = 8;
+//
+//    public int EliteMinModifiers = 2;
+//    public int UltraMinModifiers = 5;
+//    public int EldritchMinModifiers = 9;
+//
+//    public int EliteMaxModifiers = 4;
+//    public int UltraMaxModifiers = 8;
+//    public int EldritchMaxModifiers = 12;
+    @Comment("The speed of mob level growth, the greater the faster")
+    public float mobStrengthGrowFactor = 1.0f;
 
     @Comment("Prevent named mobs from becoming Elite, Ultra, and Eldritch")
     public boolean ignoreNamedMobs = true;
@@ -53,7 +55,7 @@ public class EldritchMobsConfig implements ConfigData {
     public boolean onlyDropLootIfKilledByPlayers = true;
 
     @Comment("Buffed mobs also drop the loot of the tier below them + the loot of their tier.")
-    public boolean combinedLootDrop = true;
+    public boolean combinedLootDrop = false;
 
     @Comment("Buffed mobs have generic titles w/o abilities")
     public boolean genericTitles = false;

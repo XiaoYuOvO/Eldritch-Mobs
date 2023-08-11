@@ -2,8 +2,9 @@ package net.hyper_pigeon.eldritch_mobs.mixin;
 
 import dev.onyxstudios.cca.api.v3.component.ComponentProvider;
 import net.hyper_pigeon.eldritch_mobs.EldritchMobsMod;
+import net.hyper_pigeon.eldritch_mobs.ability.AbilityType;
 import net.hyper_pigeon.eldritch_mobs.ability.callback.*;
-import net.hyper_pigeon.eldritch_mobs.rank.MobRank;
+import net.hyper_pigeon.eldritch_mobs.rank.MobRankCategory;
 import net.hyper_pigeon.eldritch_mobs.register.EldritchMobsLootTables;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
@@ -13,7 +14,6 @@ import net.minecraft.entity.effect.StatusEffect;
 import net.minecraft.entity.effect.StatusEffectInstance;
 import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.entity.mob.MobEntity;
-import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.loot.LootTable;
 import net.minecraft.loot.context.LootContextTypes;
 import net.minecraft.server.network.ServerPlayerEntity;
@@ -47,7 +47,7 @@ public abstract class LivingEntityMixin extends Entity implements ComponentProvi
 
     private boolean notNormal(ComponentProvider componentProvider){
         if(componentProvider instanceof MobEntity) {
-            return EldritchMobsMod.getRank(componentProvider) != MobRank.NONE && EldritchMobsMod.getRank(componentProvider) != MobRank.UNDECIDED;
+            return EldritchMobsMod.getLevel(componentProvider).isBuffed();
         }
         return false;
     }
@@ -70,7 +70,7 @@ public abstract class LivingEntityMixin extends Entity implements ComponentProvi
         if(this.getType() != EntityType.PLAYER && notNormal(this)){
             ActionResult result = onDamagedCallback.ON_DAMAGED.invoker().onDamaged((LivingEntity) (Object)(this), source, amount);
 
-            if(EldritchMobsMod.ELDRITCH_MOBS_CONFIG.turnOnGlowingMobs && !hasStatusEffect(StatusEffects.GLOWING)) {
+            if(EldritchMobsMod.ELDRITCH_MOBS_CONFIG.turnOnGlowingMobs && !hasStatusEffect(StatusEffects.GLOWING) && !this.hasStatusEffect(StatusEffects.INVISIBILITY)) {
                 addStatusEffect(new StatusEffectInstance(StatusEffects.GLOWING, 2400));
             }
 
@@ -129,12 +129,12 @@ public abstract class LivingEntityMixin extends Entity implements ComponentProvi
         if(this.getType() != EntityType.PLAYER && notNormal(this)
                 && (causedByPlayer || !EldritchMobsMod.ELDRITCH_MOBS_CONFIG.onlyDropLootIfKilledByPlayers)
         && !EldritchMobsMod.ELDRITCH_MOBS_CONFIG.disableLootDrops){
-            if(EldritchMobsMod.ELDRITCH_MODIFIERS.get(this).getRank() == MobRank.ELITE){
+            if(EldritchMobsMod.ELDRITCH_MODIFIERS.get(this).getRank().getCategory() == MobRankCategory.ELITE){
                 LootTable lootTable = this.world.getServer().getLootManager().getTable(EldritchMobsLootTables.EliteLootID);
                 net.minecraft.loot.context.LootContext.Builder builder = this.getLootContextBuilder(causedByPlayer, source);
                 lootTable.generateLoot(builder.build(LootContextTypes.ENTITY), this::dropStack);
             }
-            else if(EldritchMobsMod.ELDRITCH_MODIFIERS.get(this).getRank() == MobRank.ULTRA){
+            else if(EldritchMobsMod.ELDRITCH_MODIFIERS.get(this).getRank().getCategory() == MobRankCategory.ULTRA){
                 LootTable lootTable = this.world.getServer().getLootManager().getTable(EldritchMobsLootTables.UltraLootID);
                 net.minecraft.loot.context.LootContext.Builder builder = this.getLootContextBuilder(causedByPlayer, source);
                 lootTable.generateLoot(builder.build(LootContextTypes.ENTITY), this::dropStack);
@@ -143,7 +143,7 @@ public abstract class LivingEntityMixin extends Entity implements ComponentProvi
                     eliteLootTable.generateLoot(builder.build(LootContextTypes.ENTITY), this::dropStack);
                 }
             }
-            else if(EldritchMobsMod.ELDRITCH_MODIFIERS.get(this).getRank() == MobRank.ELDRITCH){
+            else if(EldritchMobsMod.ELDRITCH_MODIFIERS.get(this).getRank().getCategory() == MobRankCategory.ELDRITCH){
                 LootTable lootTable = this.world.getServer().getLootManager().getTable(EldritchMobsLootTables.EldritchLootID);
                 net.minecraft.loot.context.LootContext.Builder builder = this.getLootContextBuilder(causedByPlayer, source);
                 lootTable.generateLoot(builder.build(LootContextTypes.ENTITY), this::dropStack);

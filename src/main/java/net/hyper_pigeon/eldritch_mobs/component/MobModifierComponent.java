@@ -5,130 +5,115 @@ import net.hyper_pigeon.eldritch_mobs.ability.Ability;
 import net.hyper_pigeon.eldritch_mobs.ability.AbilityHelper;
 import net.hyper_pigeon.eldritch_mobs.component.interfaces.ModifierComponent;
 import net.hyper_pigeon.eldritch_mobs.persistent_state.SoothingLanternPersistentState;
-import net.hyper_pigeon.eldritch_mobs.rank.MobRank;
+import net.hyper_pigeon.eldritch_mobs.rank.MobRankCategory;
+import net.hyper_pigeon.eldritch_mobs.rank.MobRankLevel;
 import net.hyper_pigeon.eldritch_mobs.register.EldritchMobTagKeys;
-import net.hyper_pigeon.eldritch_mobs.register.EldritchMobsAttributeModifiers;
+import net.hyper_pigeon.eldritch_mobs.util.NormalSampler;
+import net.minecraft.client.resource.language.I18n;
 import net.minecraft.entity.attribute.EntityAttributeInstance;
+import net.minecraft.entity.attribute.EntityAttributeModifier;
 import net.minecraft.entity.attribute.EntityAttributes;
 import net.minecraft.entity.boss.BossBar;
 import net.minecraft.entity.boss.ServerBossBar;
+import net.minecraft.entity.mob.HostileEntity;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.projectile.ProjectileUtil;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
-import net.minecraft.text.Text;
+import net.minecraft.tag.EntityTypeTags;
+import net.minecraft.text.*;
+import net.minecraft.util.Formatting;
 import net.minecraft.util.hit.EntityHitResult;
 import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
 
 import java.util.ArrayList;
-import java.util.Iterator;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
 
 public class MobModifierComponent implements ModifierComponent {
 
-    private MobRank rank = MobRank.UNDECIDED;
+    private MobRankLevel rank = MobRankLevel.UNDECIDED;
     private List<Ability> modifiers = new ArrayList<>();
-    private MobEntity provider;
+    private final MobEntity provider;
     private int numMaxAbilities = 0;
     private final ServerBossBar bossBar;
     private boolean healthIncreased = false;
     private boolean checkedIfSpawnedInSoothingLanternChunk = false;
     private boolean titleSet = false;
+    private final MutableEntityAttributeModifier healthModifier = new MutableEntityAttributeModifier("eldritch.health_boost", 1.0d, EntityAttributeModifier.Operation.MULTIPLY_BASE);
+    private final NormalSampler<MobRankLevel> levelSampler;
 
     public MobModifierComponent(MobEntity provider){
         this.provider = provider;
-        this.bossBar = (ServerBossBar)(new ServerBossBar(provider.getDisplayName(), BossBar.Color.GREEN, BossBar.Style.PROGRESS));
-
+        this.bossBar = new ServerBossBar(provider.getDisplayName(), BossBar.Color.GREEN, BossBar.Style.PROGRESS);
+        this.levelSampler = new NormalSampler<>(Arrays.stream(MobRankLevel.values()).toList(), MobRankLevel.NONE, this.provider.getRandom(),2);
         if(canBeBuffed(provider)){
             randomlySetRank();
             randomlySetModifiers();
         }
         else {
-            this.rank = MobRank.NONE;
+            this.rank = MobRankLevel.NONE;
         }
 
     }
 
     public boolean canBeBuffed(MobEntity mobEntity){
-        boolean isBuffable =  this.rank == MobRank.UNDECIDED && !(mobEntity.hasCustomName() && EldritchMobsMod.ELDRITCH_MOBS_CONFIG.ignoreNamedMobs)
+        return this.rank.getCategory() == MobRankCategory.UNDECIDED && !(mobEntity.hasCustomName() && EldritchMobsMod.ELDRITCH_MOBS_CONFIG.ignoreNamedMobs)
                 && (mobEntity.getType().isIn(EldritchMobTagKeys.ALLOWED) &&
                 !mobEntity.getType().isIn(EldritchMobTagKeys.BLACKLIST));
-        return isBuffable;
     }
 
     @Override
     public void randomlySetRank() {
-
-        if(rank == MobRank.UNDECIDED) {
-            Random random = new Random();
-            double value = random.nextDouble();
-
-            rank = MobRank.NONE;
-
-            if(provider.getType().isIn(EldritchMobTagKeys.ALWAYS_ELITE) || (value <= EldritchMobsMod.ELDRITCH_MOBS_CONFIG.EliteSpawnRates && value > EldritchMobsMod.ELDRITCH_MOBS_CONFIG.UltraSpawnRates)){
-                setRank(MobRank.ELITE);
-            }
-            else if(provider.getType().isIn(EldritchMobTagKeys.ALWAYS_ULTRA) ||(value<= EldritchMobsMod.ELDRITCH_MOBS_CONFIG.UltraSpawnRates && value > EldritchMobsMod.ELDRITCH_MOBS_CONFIG.EldritchSpawnRates)){
-                setRank(MobRank.ULTRA);
-            }
-            else if(provider.getType().isIn(EldritchMobTagKeys.ALWAYS_ELDRITCH) || value <= EldritchMobsMod.ELDRITCH_MOBS_CONFIG.EldritchSpawnRates){
-                setRank(MobRank.ELDRITCH);
-            }
+        if(rank.getCategory() == MobRankCategory.UNDECIDED && this.provider instanceof HostileEntity) {
+            long day = getDay();
+            this.setRank(this.levelSampler.sample((int) Math.min(this.levelSampler.samplerSize(), day / 48),-0.012 * Math.exp(0.01 * day) + 0.9));
         }
+    }
 
-
+    private int getDay(){
+        return (int) (this.provider.getWorld().getLevelProperties().getTimeOfDay()/ 24000L);
     }
 
     @Override
     public void randomlySetModifiers() {
-        if(rank != MobRank.NONE && rank != MobRank.UNDECIDED) {
-            modifiers = AbilityHelper.pickNRandomForEntity(AbilityHelper.all_abilities, numMaxAbilities, provider.getType());
+        if(rank.isBuffed()) {
+            modifiers = AbilityHelper.pickNRandomForEntity(AbilityHelper.ALL_ABILITIES, numMaxAbilities, provider.getType());
         }
     }
 
     public void setTitle(){
-        if(!provider.hasCustomName() && !EldritchMobsMod.ELDRITCH_MOBS_CONFIG.turnOffTitles && rank != MobRank.NONE) {
-            String output = "";
-            if(EldritchMobsMod.ELDRITCH_MOBS_CONFIG.genericTitles) {
-                String tier = getRank().name().toLowerCase();
-                output += tier.substring(0,1).toUpperCase() + tier.substring(1) + " " + provider.getDisplayName().getString();
-                provider.setCustomName(Text.of(output));
-            }
-            else {
-
-                for (Ability ability: modifiers){
-                    output += ability.getName() + " ";
-                }
-
-                output += provider.getDisplayName().getString();
-
-                provider.setCustomName(Text.of(output));
-            }
-
+        if(!provider.hasCustomName() && !EldritchMobsMod.ELDRITCH_MOBS_CONFIG.turnOffTitles && rank.getCategory() != MobRankCategory.NONE) {
+            provider.setCustomName(getTitle());
         }
     }
 
     public Text getTitle(){
-        String output = "";
-
+        LiteralText output = new LiteralText("");
+        MutableText rankText = new TranslatableText(this.rank.getTranslationKey()).formatted(this.rank.getNameFormatting(), Formatting.UNDERLINE);
+        Text displayName = provider.getDisplayName();
         if(EldritchMobsMod.ELDRITCH_MOBS_CONFIG.genericTitles) {
-            String tier = getRank().name().toLowerCase();
-            output += tier.substring(0,1).toUpperCase() + tier.substring(1) + " " + provider.getDisplayName().getString();
+            output.append(rankText).append(" ").append(displayName);
         }
         else {
             for (Ability ability: modifiers){
-                output += ability.getName() + " ";
+                output.append(new TranslatableText("text.autoconfig.eldritch_mobs.option." + ability.getName().toLowerCase() + "Config").formatted(getAbilityFormatting(ability))).append(" ");
             }
-
-            output += provider.getDisplayName().getString();
+            output.append(rankText);
+            output.append(displayName);
         }
+        return output;
+    }
 
-
-        return (Text.of(output));
+    private Formatting getAbilityFormatting(Ability ability){
+        return switch (ability.getAbilityType()) {
+            case ACTIVE -> Formatting.RED;
+            case PASSIVE -> Formatting.GREEN;
+        };
     }
 
 
@@ -143,52 +128,61 @@ public class MobModifierComponent implements ModifierComponent {
         numMaxAbilities = 0;
     }
 
-    public MobRank getRank(){
+    public MobRankLevel getRank(){
         return rank;
     }
 
-    public void setRank(MobRank mobRank){
+    public void setRank(MobRankLevel mobRank){
         this.rank = mobRank;
-        if(mobRank == MobRank.ELITE){
-            numMaxAbilities = AbilityHelper.random.nextInt(EldritchMobsMod.ELDRITCH_MOBS_CONFIG.EliteMinModifiers,EldritchMobsMod.ELDRITCH_MOBS_CONFIG.EliteMaxModifiers+1);
-            this.bossBar.setColor(BossBar.Color.YELLOW);
-        }
-        else if(mobRank == MobRank.ULTRA){
-            numMaxAbilities = AbilityHelper.random.nextInt(EldritchMobsMod.ELDRITCH_MOBS_CONFIG.UltraMinModifiers,EldritchMobsMod.ELDRITCH_MOBS_CONFIG.UltraMaxModifiers+1);
-            this.bossBar.setColor(BossBar.Color.RED);
-        }
-        else if(mobRank == MobRank.ELDRITCH){
-            numMaxAbilities = AbilityHelper.random.nextInt(EldritchMobsMod.ELDRITCH_MOBS_CONFIG.EldritchMinModifiers,EldritchMobsMod.ELDRITCH_MOBS_CONFIG.EldritchMaxModifiers+1);
-            this.bossBar.setColor(BossBar.Color.PURPLE);
-        }
+        numMaxAbilities = mobRank.getSkillBonus();
+        this.bossBar.setColor(mobRank.getColor());
+//        if(mobRank == MobRankCategory.ELITE){
+//            numMaxAbilities = AbilityHelper.random.nextInt(EldritchMobsMod.ELDRITCH_MOBS_CONFIG.EliteMinModifiers,EldritchMobsMod.ELDRITCH_MOBS_CONFIG.EliteMaxModifiers+1);
+//            this.bossBar.setColor(BossBar.Color.YELLOW);
+//        }
+//        else if(mobRank == MobRankCategory.ULTRA){
+//            numMaxAbilities = AbilityHelper.random.nextInt(EldritchMobsMod.ELDRITCH_MOBS_CONFIG.UltraMinModifiers,EldritchMobsMod.ELDRITCH_MOBS_CONFIG.UltraMaxModifiers+1);
+//            this.bossBar.setColor(BossBar.Color.RED);
+//        }
+//        else if(mobRank == MobRankCategory.ELDRITCH){
+//            numMaxAbilities = AbilityHelper.random.nextInt(EldritchMobsMod.ELDRITCH_MOBS_CONFIG.EldritchMinModifiers,EldritchMobsMod.ELDRITCH_MOBS_CONFIG.EldritchMaxModifiers+1);
+//            this.bossBar.setColor(BossBar.Color.PURPLE);
+//        }
     }
 
     public void increaseHealth(){
         if(!healthIncreased){
-            if(this.rank == MobRank.ELITE){
-                EntityAttributeInstance entityAttributeInstance = provider.getAttributeInstance(EntityAttributes.GENERIC_MAX_HEALTH);
-                assert entityAttributeInstance != null;
-                if(!entityAttributeInstance.hasModifier(EldritchMobsAttributeModifiers.ELITE_HEALTH_BOOST)) {
-                    entityAttributeInstance.addPersistentModifier(EldritchMobsAttributeModifiers.ELITE_HEALTH_BOOST);
-                }
-                provider.setHealth((float)provider.getAttributeValue(EntityAttributes.GENERIC_MAX_HEALTH));
+            EntityAttributeInstance entityAttributeInstance = provider.getAttributeInstance(EntityAttributes.GENERIC_MAX_HEALTH);
+            assert entityAttributeInstance != null;
+            if (!entityAttributeInstance.hasModifier(healthModifier)) {
+                healthModifier.setValue(this.rank.getHealthBonus());
+                entityAttributeInstance.addPersistentModifier(healthModifier);
             }
-            else if(this.rank == MobRank.ULTRA){
-                EntityAttributeInstance entityAttributeInstance = provider.getAttributeInstance(EntityAttributes.GENERIC_MAX_HEALTH);
-                assert entityAttributeInstance != null;
-                if(!entityAttributeInstance.hasModifier(EldritchMobsAttributeModifiers.ULTRA_HEALTH_BOOST)) {
-                    entityAttributeInstance.addPersistentModifier(EldritchMobsAttributeModifiers.ULTRA_HEALTH_BOOST);
-                }
-                provider.setHealth((float)provider.getAttributeValue(EntityAttributes.GENERIC_MAX_HEALTH));
-            }
-            else if(this.rank == MobRank.ELDRITCH){
-                EntityAttributeInstance entityAttributeInstance = provider.getAttributeInstance(EntityAttributes.GENERIC_MAX_HEALTH);
-                assert entityAttributeInstance != null;
-                if(!entityAttributeInstance.hasModifier(EldritchMobsAttributeModifiers.ELDRITCH_HEALTH_BOOST)){
-                    entityAttributeInstance.addPersistentModifier(EldritchMobsAttributeModifiers.ELDRITCH_HEALTH_BOOST);
-                }
-                provider.setHealth((float)provider.getAttributeValue(EntityAttributes.GENERIC_MAX_HEALTH));
-            }
+            provider.setHealth((float)provider.getAttributeValue(EntityAttributes.GENERIC_MAX_HEALTH));
+//            if(this.rank == MobRankCategory.ELITE){
+//                EntityAttributeInstance entityAttributeInstance = provider.getAttributeInstance(EntityAttributes.GENERIC_MAX_HEALTH);
+//                assert entityAttributeInstance != null;
+//                if(!entityAttributeInstance.hasModifier(EldritchMobsAttributeModifiers.ELITE_HEALTH_BOOST)) {
+//                    entityAttributeInstance.addPersistentModifier(EldritchMobsAttributeModifiers.ELITE_HEALTH_BOOST);
+//                }
+//                provider.setHealth((float)provider.getAttributeValue(EntityAttributes.GENERIC_MAX_HEALTH));
+//            }
+//            else if(this.rank == MobRankCategory.ULTRA){
+//                EntityAttributeInstance entityAttributeInstance = provider.getAttributeInstance(EntityAttributes.GENERIC_MAX_HEALTH);
+//                assert entityAttributeInstance != null;
+//                if(!entityAttributeInstance.hasModifier(EldritchMobsAttributeModifiers.ULTRA_HEALTH_BOOST)) {
+//                    entityAttributeInstance.addPersistentModifier(EldritchMobsAttributeModifiers.ULTRA_HEALTH_BOOST);
+//                }
+//                provider.setHealth((float)provider.getAttributeValue(EntityAttributes.GENERIC_MAX_HEALTH));
+//            }
+//            else if(this.rank == MobRankCategory.ELDRITCH){
+//                EntityAttributeInstance entityAttributeInstance = provider.getAttributeInstance(EntityAttributes.GENERIC_MAX_HEALTH);
+//                assert entityAttributeInstance != null;
+//                if(!entityAttributeInstance.hasModifier(EldritchMobsAttributeModifiers.ELDRITCH_HEALTH_BOOST)){
+//                    entityAttributeInstance.addPersistentModifier(EldritchMobsAttributeModifiers.ELDRITCH_HEALTH_BOOST);
+//                }
+//                provider.setHealth((float)provider.getAttributeValue(EntityAttributes.GENERIC_MAX_HEALTH));
+//            }
             healthIncreased = true;
         }
     }
@@ -205,22 +199,28 @@ public class MobModifierComponent implements ModifierComponent {
         numMaxAbilities = tag.getInt("numMaxAbilities");
         checkedIfSpawnedInSoothingLanternChunk = tag.getBoolean("checkedIfSpawnedInSoothingLanternChunk");
         titleSet = tag.getBoolean("titleSet");
+        if (tag.contains("RankLevel")) {
+            this.rank = MobRankLevel.valueOf(tag.getString("RankLevel").toUpperCase());
+            if (rank.isBuffed()){
+                this.bossBar.setColor(rank.getColor());
+            }
+        }
 
-        if(numMaxAbilities == 0){
-            rank = MobRank.NONE;
-        }
-        else if(numMaxAbilities <= 4 && numMaxAbilities >= 1){
-            rank = MobRank.ELITE;
-            this.bossBar.setColor(BossBar.Color.YELLOW);
-        }
-        else if(numMaxAbilities <= 8 && numMaxAbilities >= 5){
-            rank = MobRank.ULTRA;
-            this.bossBar.setColor(BossBar.Color.RED);
-        }
-        else if(numMaxAbilities <= 12 && numMaxAbilities >= 9){
-            rank = MobRank.ULTRA;
-            this.bossBar.setColor(BossBar.Color.PURPLE);
-        }
+//        if(numMaxAbilities == 0){
+//            rank = MobRankCategory.NONE;
+//        }
+//        else if(numMaxAbilities <= 4 && numMaxAbilities >= 1){
+//            rank = MobRankCategory.ELITE;
+//            this.bossBar.setColor(BossBar.Color.YELLOW);
+//        }
+//        else if(numMaxAbilities <= 8 && numMaxAbilities >= 5){
+//            rank = MobRankCategory.ULTRA;
+//            this.bossBar.setColor(BossBar.Color.RED);
+//        }
+//        else if(numMaxAbilities <= 12 && numMaxAbilities >= 9){
+//            rank = MobRankCategory.ULTRA;
+//            this.bossBar.setColor(BossBar.Color.PURPLE);
+//        }
 
         NbtCompound abilities = tag.getCompound("abilities");
 
@@ -229,7 +229,7 @@ public class MobModifierComponent implements ModifierComponent {
         }
 
         for (String ability : abilities.getKeys()){
-            modifiers.add(AbilityHelper.abilityNames.get(ability));
+            modifiers.add(AbilityHelper.ABILITY_NAMES.get(ability));
         }
 
     }
@@ -240,14 +240,12 @@ public class MobModifierComponent implements ModifierComponent {
         tag.putInt("numMaxAbilities",numMaxAbilities);
         tag.putBoolean("checkedIfSpawnedInSoothingLanternChunk",checkedIfSpawnedInSoothingLanternChunk);
         tag.putBoolean("titleSet",titleSet);
-
+        tag.putString("RankLevel", rank.name().toLowerCase());
         NbtCompound mobAbilities = new NbtCompound();
 
         if(modifiers != null){
-            Iterator<Ability> iterator = modifiers.iterator();
-            while(iterator.hasNext()){
-                Ability ability = iterator.next();
-                mobAbilities.putString(ability.getName(),ability.getName());
+            for (Ability ability : modifiers) {
+                mobAbilities.putString(ability.getName(), ability.getName());
             }
         }
 
@@ -256,7 +254,7 @@ public class MobModifierComponent implements ModifierComponent {
     }
 
     public void makeMobNormal(){
-        this.rank = MobRank.NONE;
+        this.rank = MobRankLevel.NONE;
         clearModifiers();
         provider.setCustomName(null);
         this.bossBar.clearPlayers();
@@ -266,14 +264,10 @@ public class MobModifierComponent implements ModifierComponent {
         Vec3d vec3d = player.getEyePos();
         Vec3d vec3d2 = player.getRotationVec(1.0F);
         Vec3d vec3d3 = vec3d.add(vec3d2.x * 100.0D, vec3d2.y * 100.0D, vec3d2.z * 100.0D);
-        EntityHitResult entityHitResult = ProjectileUtil.getEntityCollision(player.world, player, vec3d, vec3d3, (new Box(vec3d, vec3d3)).expand(1.0D), (entityx) -> {
-            return !entityx.isSpectator() && entityx instanceof MobEntity;
-        }, 0.0F);
+        EntityHitResult entityHitResult = ProjectileUtil.getEntityCollision(player.world, player, vec3d, vec3d3, (new Box(vec3d, vec3d3)).expand(1.0D), (entityx) -> !entityx.isSpectator() && entityx instanceof MobEntity, 0.0F);
         if (entityHitResult != null && entityHitResult.getType() == HitResult.Type.ENTITY) {
             MobEntity mobEntity = (MobEntity) entityHitResult.getEntity();
-            if(mobEntity.equals(provider)){
-                return true;
-            }
+            return mobEntity.equals(provider);
         }
         return false;
     }
@@ -284,15 +278,14 @@ public class MobModifierComponent implements ModifierComponent {
     public void serverTick() {
         if(!checkedIfSpawnedInSoothingLanternChunk)
         {
-            if(this.rank != MobRank.NONE && !provider.getEntityWorld().isClient() &&
+            if(this.rank.getCategory() != MobRankCategory.NONE && !provider.getEntityWorld().isClient() &&
                     SoothingLanternPersistentState.get((ServerWorld) provider.getEntityWorld()).containsChunk(provider.getChunkPos())){
                 makeMobNormal();
             }
             checkedIfSpawnedInSoothingLanternChunk = true;
         }
 
-        if(getRank() != MobRank.NONE) {
-
+        if(getRank().getCategory() != MobRankCategory.NONE) {
             if(!provider.hasCustomName() && !titleSet &&!EldritchMobsMod.ELDRITCH_MOBS_CONFIG.turnOffTitles){
                 setTitle();
                 titleSet = true;
@@ -309,7 +302,7 @@ public class MobModifierComponent implements ModifierComponent {
 
                 if(EldritchMobsMod.ELDRITCH_MOBS_CONFIG.crosshairBossBars) {
                     List<ServerPlayerEntity> bossBarPlayers = bossBar.getPlayers().stream().toList();
-                    bossBarPlayers.stream().forEach(player -> {
+                    bossBarPlayers.forEach(player -> {
                         if(!isPlayerStaring(player)) {
                             bossBar.removePlayer(player);
                         }

@@ -3,7 +3,7 @@ package net.hyper_pigeon.eldritch_mobs.mixin;
 import com.mojang.authlib.GameProfile;
 import dev.onyxstudios.cca.api.v3.component.ComponentProvider;
 import net.hyper_pigeon.eldritch_mobs.EldritchMobsMod;
-import net.hyper_pigeon.eldritch_mobs.rank.MobRank;
+import net.hyper_pigeon.eldritch_mobs.rank.MobRankCategory;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.projectile.ProjectileUtil;
@@ -14,7 +14,6 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
-import org.jetbrains.annotations.Nullable;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -36,7 +35,7 @@ public abstract class ServerPlayerEntityMixin extends PlayerEntity {
             Vec3d vec3d2 = getRotationVec(1.0F);
             Vec3d vec3d3 = vec3d.add(vec3d2.x * 100.0D, vec3d2.y * 100.0D, vec3d2.z * 100.0D);
             EntityHitResult entityHitResult = ProjectileUtil.getEntityCollision(world, (ServerPlayerEntity)(Object)this, vec3d, vec3d3, (new Box(vec3d, vec3d3)).expand(1.0D), (entityx) -> {
-                return !entityx.isSpectator() && entityx instanceof MobEntity && EldritchMobsMod.getRank((ComponentProvider) entityx) != MobRank.NONE && EldritchMobsMod.getRank((ComponentProvider) entityx) != MobRank.UNDECIDED;
+                return !entityx.isSpectator() && entityx instanceof MobEntity && EldritchMobsMod.getLevel((ComponentProvider) entityx).isBuffed();
             }, 0.0F);
             if (entityHitResult != null && entityHitResult.getType() == HitResult.Type.ENTITY) {
                 MobEntity mobEntity = (MobEntity) entityHitResult.getEntity();

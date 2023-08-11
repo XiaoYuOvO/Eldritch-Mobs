@@ -2,7 +2,6 @@ package net.hyper_pigeon.eldritch_mobs.mixin;
 
 import dev.onyxstudios.cca.api.v3.component.ComponentProvider;
 import net.hyper_pigeon.eldritch_mobs.EldritchMobsMod;
-import net.hyper_pigeon.eldritch_mobs.rank.MobRankCategory;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.mob.MobEntity;

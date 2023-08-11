@@ -2,7 +2,6 @@ package net.hyper_pigeon.eldritch_mobs.mixin;
 
 import dev.onyxstudios.cca.api.v3.component.ComponentProvider;
 import net.hyper_pigeon.eldritch_mobs.EldritchMobsMod;
-import net.hyper_pigeon.eldritch_mobs.ability.AbilityType;
 import net.hyper_pigeon.eldritch_mobs.ability.callback.*;
 import net.hyper_pigeon.eldritch_mobs.rank.MobRankCategory;
 import net.hyper_pigeon.eldritch_mobs.register.EldritchMobsLootTables;
@@ -54,7 +53,7 @@ public abstract class LivingEntityMixin extends Entity implements ComponentProvi
 
 
 
-    @Inject(method = "onAttacking", at = @At(value = "FIELD", target = "net/minecraft/entity/LivingEntity.attacking : Lnet/minecraft/entity/LivingEntity;",opcode = Opcodes.PUTFIELD,ordinal = 0, shift = At.Shift.AFTER))
+    @Inject(method = "onAttacking", at = @At(value = "FIELD", target = "net/minecraft/entity/LivingEntity.attacking : Lnet/minecraft/entity/LivingEntity;",opcode = Opcodes.PUTFIELD,ordinal = 0, shift = At.Shift.AFTER), cancellable = true)
     private void applyOnAttackAbilities(Entity target, CallbackInfo ci){
         if(target instanceof LivingEntity && this.getType() != EntityType.PLAYER
         && notNormal(this)) {
